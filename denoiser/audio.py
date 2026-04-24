@@ -16,18 +16,20 @@ import torchaudio
 from torch.nn import functional as F
 
 from .dsp import convert_audio
+import soundfile as sf
+import torch
+import torch.nn.functional as F
 
 Info = namedtuple("Info", ["length", "sample_rate", "channels"])
 
 
 def get_info(path):
-    info = torchaudio.info(path)
-    if hasattr(info, 'num_frames'):
-        # new version of torchaudio
-        return Info(info.num_frames, info.sample_rate, info.num_channels)
-    else:
-        siginfo = info[0]
-        return Info(siginfo.length // siginfo.channels, siginfo.rate, siginfo.channels)
+    info = sf.info(path)
+    return Info(
+        length=info.frames, 
+        sample_rate=info.samplerate, 
+        channels=info.channels
+    )
 
 
 def find_audio_files(path, exts=[".wav"], progress=True):
@@ -44,6 +46,12 @@ def find_audio_files(path, exts=[".wav"], progress=True):
         if progress:
             print(format((1 + idx) / len(audio_files), " 3.1%"), end='\r', file=sys.stderr)
     meta.sort()
+    return meta
+
+def find_audio_file(path, exts=[".wav"]):
+    meta = []
+    info = get_info(path)
+    meta.append((path, info.length))
     return meta
 
 
@@ -86,27 +94,33 @@ class Audioset:
             if self.length is not None:
                 offset = self.stride * index
                 num_frames = self.length
-            if torchaudio.get_audio_backend() in ['soundfile', 'sox_io']:
-                out, sr = torchaudio.load(str(file),
-                                          frame_offset=offset,
-                                          num_frames=num_frames or -1)
-            else:
-                out, sr = torchaudio.load(str(file), offset=offset, num_frames=num_frames)
+            data, sr = sf.read(str(file), always_2d=True) # (frames, channels)
+            data = data.T # (channels, frames)
+            
+            if num_frames > 0:
+                data = data[:, offset : offset + num_frames]
+            elif offset > 0:
+                data = data[:, offset:]
+                
+            out = torch.from_numpy(data).float()
+
             target_sr = self.sample_rate or sr
             target_channels = self.channels or out.shape[0]
+            
             if self.convert:
+                # convert_audio function needs to be defined
                 out = convert_audio(out, sr, target_sr, target_channels)
             else:
                 if sr != target_sr:
-                    raise RuntimeError(f"Expected {file} to have sample rate of "
-                                       f"{target_sr}, but got {sr}")
+                    raise RuntimeError(f"Expected {file} to have sample rate of {target_sr}, but got {sr}")
                 if out.shape[0] != target_channels:
-                    raise RuntimeError(f"Expected {file} to have sample rate of "
-                                       f"{target_channels}, but got {sr}")
-            if num_frames:
+                    raise RuntimeError(f"Expected {file} to have channels of {target_channels}, but got {out.shape[0]}")
+            
+            if num_frames and num_frames > out.shape[-1]:
                 out = F.pad(out, (0, num_frames - out.shape[-1]))
+
             if self.with_path:
-                return out, file
+                return out, str(file)
             else:
                 return out
 

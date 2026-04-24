@@ -15,11 +15,12 @@ import sys
 import torch
 import torchaudio
 
-from .audio import Audioset, find_audio_files
+from .audio import Audioset, find_audio_files, find_audio_file
 from . import distrib, pretrained
 from .demucs import DemucsStreamer
 
 from .utils import LogProgress
+import soundfile as sf
 
 logger = logging.getLogger(__name__)
 
@@ -52,6 +53,8 @@ group.add_argument("--noisy_dir", type=str, default=None,
                    help="directory including noisy wav files")
 group.add_argument("--noisy_json", type=str, default=None,
                    help="json file including noisy wav files")
+group.add_argument("--noisy_file", type=str, default=None,
+                   help="a single noisy wav file")
 
 
 def get_estimate(model, noisy, args):
@@ -73,14 +76,15 @@ def save_wavs(estimates, noisy_sigs, filenames, out_dir, sr=16_000):
     # Write result
     for estimate, noisy, filename in zip(estimates, noisy_sigs, filenames):
         filename = os.path.join(out_dir, os.path.basename(filename).rsplit(".", 1)[0])
-        write(noisy, filename + "_noisy.wav", sr=sr)
-        write(estimate, filename + "_enhanced.wav", sr=sr)
+        # write(noisy, filename + "_noisy.wav", sr=sr)
+        write(estimate, filename + "_denoised.wav", sr=sr)
 
 
 def write(wav, filename, sr=16_000):
     # Normalize audio if it prevents clipping
     wav = wav / max(wav.abs().max().item(), 1)
-    torchaudio.save(filename, wav.cpu(), sr)
+    # torchaudio.save(filename, wav.cpu(), sr)
+    sf.write(filename, wav.cpu().t().numpy(), sr)
 
 
 def get_dataset(args, sample_rate, channels):
@@ -93,6 +97,8 @@ def get_dataset(args, sample_rate, channels):
             files = json.load(f)
     elif paths.noisy_dir:
         files = find_audio_files(paths.noisy_dir)
+    elif paths.noisy_file:
+        files = find_audio_file(paths.noisy_file)
     else:
         logger.warning(
             "Small sample set was not provided by either noisy_dir or noisy_json. "
