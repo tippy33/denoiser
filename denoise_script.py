@@ -1,14 +1,17 @@
 import subprocess
 from pathlib import Path
 
-TARGET_DIR = "/Volumes/One Touch/ASD_Dataset/all-audios-copy"
-SAVE_DIR = "/Volumes/One Touch/ASD_Dataset/all-audios-denoised"
+# TARGET_DIR = "/Volumes/One Touch/ASD_Dataset/all-audios-copy"
+# SAVE_DIR = "/Volumes/One Touch/ASD_Dataset/all-audios-denoised"
+TARGET_DIR = "/Users/youngsuh-hong/ys_files/USC/V2_audio_analysis/denoiser/noisy"
+SAVE_DIR = "/Users/youngsuh-hong/ys_files/USC/V2_audio_analysis/denoiser/output"
+
 
 def run_denoiser():
   target_dir = Path(TARGET_DIR)
   for i, file in enumerate(target_dir.iterdir()):
     file_size = file.stat().st_size
-    if file.suffix == ".wav" and file_size <= 30 * 1024:
+    if file.suffix == ".wav":
       # if str(file).endswith("p18-s13.wav") or str(file).endswith("p18-s17.wav") or str(file).endswith("p18-s18.wav") or str(file).endswith("p18-s19.wav") or str(file).endswith("p18-s20.wav"):
       #   pass
       # else:
